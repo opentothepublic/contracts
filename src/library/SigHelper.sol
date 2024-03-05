@@ -5,12 +5,12 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 error InvalidSignatureLength();
 
-library SignatureValidation {
+library SignatureVerifier {
   using ECDSA for bytes32;
 
-  function _extractTwoECDSASignatures(
+  function extractTwoECDSASignatures(
     bytes memory _fullSignature
-  ) internal pure returns (bytes memory sig0, bytes memory sig1) {
+  ) public pure returns (bytes memory sig0, bytes memory sig1) {
     sig0 = new bytes(65);
     sig1 = new bytes(65);
 
@@ -59,8 +59,24 @@ library SignatureValidation {
     address[2] memory signers
   ) public pure returns (bool) {
     if (total(signatures) != 2) revert InvalidSignatureLength();
-    (bytes memory sig0, bytes memory sig1) = _extractTwoECDSASignatures(signatures);
+    (bytes memory sig0, bytes memory sig1) = extractTwoECDSASignatures(signatures);
     return hash.recover(sig0) == signers[0] && hash.recover(sig1) == signers[1];
+  }
+
+  /**
+   * checks a signature against a hash possibly signed by one of two addresses
+   * @param signature  The signature to be checked
+   * @param hash       Bytes32 digets
+   * @param signers    Expected valid signers
+   */
+  function validateOneOfTwoSigners(
+    bytes calldata signature,
+    bytes32 hash,
+    address[2] memory signers
+  ) public pure returns (bool) {
+    if (total(signature) != 1) revert InvalidSignatureLength();
+    address signer = hash.recover(signature);
+    return signer == signers[0] || signer == signers[1];
   }
 
   /**
