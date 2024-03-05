@@ -26,7 +26,7 @@ contract UserRegistry {
       PublicKeyFormat.STANDARD,
       bytes.concat(bytes20(user)),
       sigVerifier,
-      0x00000000
+      0xbaca03f5
     );
 
     PublicKey[] memory accountKeys;
@@ -58,12 +58,12 @@ contract UserRegistry {
     bytes memory _key,
     address _sigVerifier,
     PublicKeyFormat _format,
-    bytes4 _verifyFunctionSelector
+    bytes4 _verifyFnSelector
   ) internal {
     PublicKey[] storage publicKeys = accounts[_id].publicKeys;
     if (!(publicKeys.length < 3)) revert IndexOutOfBounds();
 
-    PublicKey memory publicKey = PublicKey(_format, _key, _sigVerifier, _verifyFunctionSelector);
+    PublicKey memory publicKey = PublicKey(_format, _key, _sigVerifier, _verifyFnSelector);
     publicKeys.push(publicKey);
 
     emit PublicKeyAdded(_id, uint8(_format), _key);

@@ -40,8 +40,8 @@ library SignatureVerifier {
    * @param signer     Expected valid signer
    */
   function validateOneSignature(
-    bytes calldata signature,
     bytes32 hash,
+    bytes calldata signature,
     address signer
   ) public pure returns (bool) {
     return hash.recover(signature) == signer;
@@ -54,8 +54,8 @@ library SignatureVerifier {
    * @param signers    Expected valid signers
    */
   function validateTwoSignatures(
-    bytes calldata signatures,
     bytes32 hash,
+    bytes calldata signatures,
     address[2] memory signers
   ) public pure returns (bool) {
     if (total(signatures) != 2) revert InvalidSignatureLength();
@@ -70,8 +70,8 @@ library SignatureVerifier {
    * @param signers    Expected valid signers
    */
   function validateOneOfTwoSigners(
-    bytes calldata signature,
     bytes32 hash,
+    bytes calldata signature,
     address[2] memory signers
   ) public pure returns (bool) {
     if (total(signature) != 1) revert InvalidSignatureLength();
@@ -86,8 +86,8 @@ library SignatureVerifier {
    * @param signers    Expected valid signers
    */
   function validateOneOfThreeSigners(
-    bytes calldata signature,
     bytes32 hash,
+    bytes calldata signature,
     address[3] memory signers
   ) public pure returns (bool) {
     if (total(signature) != 1) revert InvalidSignatureLength();
