@@ -8,7 +8,8 @@ struct OTTPUser {
 }
 
 enum PublicKeyFormat {
-  STANDARD,
+  DEFAULT,
+  SMART_ACCOUNT,
   CUSTOM
 }
 

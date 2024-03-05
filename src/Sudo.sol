@@ -6,14 +6,10 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 
 /// initiates protocol based recovery if user is sudoable
 /// https://github.com/farcasterxyz/contracts/blob/main/src/RecoveryProxy.sol
-contract Sudo is Ownable2Step {
+abstract contract Sudo is Ownable2Step {
   event SetOidRegistry(IOidRegistry oldIdRegistry, IOidRegistry newIdRegistry);
 
   IOidRegistry public oidRegistry;
-
-  constructor(address _oidRegistry, address _sudoer) Ownable(_sudoer) {
-    oidRegistry = IOidRegistry(_oidRegistry);
-  }
 
   function recover(address from, address to, bytes calldata sig) external onlyOwner {
     // oidRegistry.recover(from, to, sig);

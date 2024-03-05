@@ -23,7 +23,7 @@ contract UserRegistry {
     address sigVerifier
   ) internal {
     PublicKey memory publicKey = PublicKey(
-      PublicKeyFormat.STANDARD,
+      PublicKeyFormat.DEFAULT,
       bytes.concat(bytes20(user)),
       sigVerifier,
       0xbaca03f5

@@ -9,13 +9,11 @@ import "@~/library/SigHelper.sol";
 contract EIP1271 is EIP712 {
   using SignatureVerifier for bytes32;
 
-  error InvalidPublicKeyFormat();
-
   constructor() EIP712("OTTP Signature Verifier", "1") {}
 
   // fnsig -> baca03f5
   function isValidSignature(
-    bytes32 _signedHash,
+    bytes32 _hash,
     PublicKey memory _publickey,
     bytes calldata _signature
   ) external view returns (bytes4 magicValue) {
@@ -23,13 +21,13 @@ contract EIP1271 is EIP712 {
 
     if (_publickey.sigVerifier == address(this)) {
       return
-        _verify(_hashTypedDataV4(_signedHash), _publickey, _signature)
+        _verify(_hashTypedDataV4(_hash), _publickey, _signature)
           ? MAGICVALUE
           : SIG_VERIFICATION_FAILED;
     }
 
     return
-      _delegateVerify(_hashTypedDataV4(_signedHash), _publickey, _signature)
+      _delegateVerify(_hashTypedDataV4(_hash), _publickey, _signature)
         ? MAGICVALUE
         : SIG_VERIFICATION_FAILED;
   }
@@ -53,19 +51,21 @@ contract EIP1271 is EIP712 {
   // typehash | oid | sudo | recovery1 | recovery2 | to | nonce | deadline
 
   function _verify(
-    bytes32 _signedHash,
+    bytes32 _hash,
     PublicKey memory _publickey,
     bytes calldata _signature
   ) internal view returns (bool) {
-    if (_publickey.format == PublicKeyFormat.STANDARD) {
+    if (_publickey.format == PublicKeyFormat.DEFAULT) {
       address signer = address(bytes20(_publickey.key));
-      return _signedHash.validateOneSignature(_signature, signer);
+      return _hash.validateOneSignature(_signature, signer);
+    } else if (_publickey.format == PublicKeyFormat.SMART_ACCOUNT) {
+      return _smartAccountVerify(_hash, _publickey, _signature);
     }
-    return _smartAccountVerify(_signedHash, _publickey, _signature);
+    return false;
   }
 
   function _smartAccountVerify(
-    bytes32 _signedHash,
+    bytes32 _hash,
     PublicKey memory _publickey,
     bytes calldata _signature
   ) internal view returns (bool) {
@@ -74,24 +74,24 @@ contract EIP1271 is EIP712 {
     // why? the owner of an ottp id might be a smart accout, and unlike regular eoa,
     // we may not be able to access the underlying signer.
     (bool success, bytes memory ret) = _publickey.sigVerifier.staticcall(
-      abi.encodeWithSelector(IERC1271.isValidSignature.selector, _signedHash, _signature)
+      abi.encodeWithSelector(IERC1271.isValidSignature.selector, _hash, _signature)
     );
     if (success) {
-      return abi.decode(ret, (bytes4)) == MAGICVALUE;
+      return abi.decode(ret, (bytes4)) == 0x1626ba7e;
     }
 
     return false;
   }
 
   function _delegateVerify(
-    bytes32 _signedHash,
+    bytes32 _hash,
     PublicKey memory _publickey,
     bytes calldata _signature
   ) internal view returns (bool) {
     (bool success, bytes memory ret) = _publickey.sigVerifier.staticcall(
       abi.encodeWithSelector(
         _publickey.verifyFnSelector,
-        abi.encode(_signedHash, _publickey.key, _signature)
+        abi.encode(_hash, _publickey.key, _signature)
       )
     );
 
