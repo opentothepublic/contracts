@@ -2,103 +2,115 @@
 pragma solidity ^0.8.23;
 
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "@~/library/Structs.sol";
 import "@~/library/SigHelper.sol";
 
 contract EIP1271 is EIP712 {
   using SignatureVerifier for bytes32;
 
+  bytes32 public constant SUDO_RECOVER_TYPEHASH =
+    keccak256("isValidSudoSignature(uint256 oid,uint256 nonce,uint256 deadline, address sudo)");
+
+  bytes32 public constant RECOVERY_TYPEHASH =
+    keccak256(
+      "isValidRecoverySignature(uint256 oid,uint256 nonce,uint256 deadline, address recovery1, address recovery2)"
+    );
+
+  bytes32 public constant RECOVERY_OR_SUDO_TYPEHASH =
+    keccak256(
+      "isValidSudoOrRecoverySignature(uint256 oid,uint256 nonce,uint256 deadline, address recovery1, address recovery2, address sudo)"
+    );
+
+  error SignatureExpired();
+
   constructor() EIP712("OTTP Signature Verifier", "1") {}
 
   // fnsig -> baca03f5
   function isValidSignature(
-    bytes32 _hash,
-    PublicKey memory _publickey,
-    bytes calldata _signature
+    bytes32 hash,
+    PublicKey memory publickey,
+    bytes calldata signature
   ) external view returns (bytes4 magicValue) {
-    if (_publickey.sigVerifier == address(0)) return SIG_VERIFICATION_FAILED;
+    if (publickey.sigVerifier == address(0)) return SIG_VERIFICATION_FAILED;
 
-    if (_publickey.sigVerifier == address(this)) {
-      return
-        _verify(_hashTypedDataV4(_hash), _publickey, _signature)
-          ? MAGICVALUE
-          : SIG_VERIFICATION_FAILED;
+    if (publickey.sigVerifier == address(this)) {
+      return _verify(hash, publickey, signature) ? MAGICVALUE : SIG_VERIFICATION_FAILED;
     }
 
+    return _verify(hash, publickey, signature, "") ? MAGICVALUE : SIG_VERIFICATION_FAILED;
+  }
+
+  function isValidSudoSignature(
+    uint256 oid,
+    uint256 nonce,
+    uint256 deadline,
+    address sudo,
+    bytes memory signature
+  ) external view returns (bytes4 magicValue) {
+    if (block.timestamp > deadline) revert SignatureExpired();
     return
-      _delegateVerify(_hashTypedDataV4(_hash), _publickey, _signature)
+      _hashTypedDataV4(keccak256(abi.encode(SUDO_RECOVER_TYPEHASH, oid, nonce, deadline, sudo)))
+        .validateOneSignature(signature, sudo)
         ? MAGICVALUE
         : SIG_VERIFICATION_FAILED;
   }
 
-  // todo: 1 isValidSudoSignature -> singular.
-  // with typehash
-  //
-  // hashTypedData:encode
-  // typehash | oid | sudo | nonce | deadline
+  function isValidRecoverySignature(
+    uint256 oid,
+    uint256 nonce,
+    uint256 deadline,
+    address recovery1,
+    address recovery2,
+    bytes memory signature
+  ) external view returns (bytes4 magicValue) {
+    if (block.timestamp > deadline) revert SignatureExpired();
+    return
+      _hashTypedDataV4(
+        keccak256(abi.encode(RECOVERY_TYPEHASH, oid, nonce, deadline, recovery1, recovery2))
+      ).validateOneOfTwoSigners(signature, [recovery1, recovery2])
+        ? MAGICVALUE
+        : SIG_VERIFICATION_FAILED;
+  }
 
-  // todo: 2 isValidRecoverySignature -> one of two
-  // with typehash
-  //
-  // hashTypedData:encode
-  // typehash | oid | recovery1 | recovery2 | to | nonce | deadline
-
-  // todo: 3 isValidSudoOrRecoverySignature -> one of three
-  // with typehash
-  //
-  // hashTypedData:encode
-  // typehash | oid | sudo | recovery1 | recovery2 | to | nonce | deadline
+  function isValidSudoOrRecoverySignature(
+    uint256 oid,
+    uint256 nonce,
+    uint256 deadline,
+    address recovery1,
+    address recovery2,
+    address sudo,
+    bytes memory signature
+  ) external view returns (bytes4 magicValue) {
+    if (block.timestamp > deadline) revert SignatureExpired();
+    return
+      _hashTypedDataV4(
+        keccak256(
+          abi.encode(RECOVERY_OR_SUDO_TYPEHASH, oid, nonce, deadline, recovery1, recovery2, sudo)
+        )
+      ).validateOneOfThreeSigners(signature, [recovery1, recovery2, sudo])
+        ? MAGICVALUE
+        : SIG_VERIFICATION_FAILED;
+  }
 
   function _verify(
-    bytes32 _hash,
-    PublicKey memory _publickey,
-    bytes calldata _signature
+    bytes32 hash,
+    PublicKey memory publickey,
+    bytes calldata signature
   ) internal view returns (bool) {
-    if (_publickey.format == PublicKeyFormat.DEFAULT) {
-      address signer = address(bytes20(_publickey.key));
-      return _hash.validateOneSignature(_signature, signer);
-    } else if (_publickey.format == PublicKeyFormat.SMART_ACCOUNT) {
-      return _smartAccountVerify(_hash, _publickey, _signature);
-    }
-    return false;
+    address signer = address(bytes20(publickey.key));
+    return _hashTypedDataV4(hash).validateOneSignature(signature, signer);
   }
 
-  function _smartAccountVerify(
-    bytes32 _hash,
-    PublicKey memory _publickey,
-    bytes calldata _signature
+  function _verify(
+    bytes32 hash,
+    PublicKey memory publickey,
+    bytes calldata signature,
+    bytes memory data
   ) internal view returns (bool) {
-    // in case of smart accounts, it is possible to delegate to the account to verify for us.
-    // this requires the account to conform to eip1271.
-    // why? the owner of an ottp id might be a smart accout, and unlike regular eoa,
-    // we may not be able to access the underlying signer.
-    (bool success, bytes memory ret) = _publickey.sigVerifier.staticcall(
-      abi.encodeWithSelector(IERC1271.isValidSignature.selector, _hash, _signature)
-    );
-    if (success) {
-      return abi.decode(ret, (bytes4)) == 0x1626ba7e;
-    }
-
-    return false;
-  }
-
-  function _delegateVerify(
-    bytes32 _hash,
-    PublicKey memory _publickey,
-    bytes calldata _signature
-  ) internal view returns (bool) {
-    (bool success, bytes memory ret) = _publickey.sigVerifier.staticcall(
-      abi.encodeWithSelector(
-        _publickey.verifyFnSelector,
-        abi.encode(_hash, _publickey.key, _signature)
-      )
-    );
-
-    if (success) {
-      return abi.decode(ret, (bytes4)) == _publickey.verifyFnSelector;
-    }
-
-    return false;
+    return
+      _hashTypedDataV4(hash).validateOneSignature(
+        abi.encode(publickey.key, signature, data),
+        publickey.sigVerifier
+      );
   }
 }

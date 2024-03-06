@@ -8,7 +8,7 @@ contract UserRegistry {
   mapping(uint256 oid => mapping(address sudo => bool active)) public sudoable;
 
   event UserRegistered(uint256 indexed oid, address user);
-  event PublicKeyAdded(uint256 indexed oid, uint8 format, bytes key);
+  event PublicKeyAdded(uint256 indexed oid, bytes key);
   event PublicKeyRemoved(uint256 indexed oid, bytes key);
   event SudoRevoked(uint256 indexed oid, address sudo);
   event SudoGranted(uint256 indexed oid, address sudo);
@@ -22,17 +22,13 @@ contract UserRegistry {
     address[2] memory recoveryAddresses,
     address sigVerifier
   ) internal {
-    PublicKey memory publicKey = PublicKey(
-      PublicKeyFormat.DEFAULT,
-      bytes.concat(bytes20(user)),
-      sigVerifier,
-      0xbaca03f5
-    );
+    PublicKey memory publicKey = PublicKey(bytes.concat(bytes20(user)), sigVerifier);
 
     PublicKey[] memory accountKeys;
     accountKeys[0] = publicKey;
 
     accounts[id] = OTTPUser({
+      handle: bytes32(id),
       recovery: recoveryAddresses,
       publicKeys: accountKeys,
       sudo: address(0)
@@ -53,20 +49,14 @@ contract UserRegistry {
     emit PublicKeyRemoved(_id, key);
   }
 
-  function _addPublicKey(
-    uint256 _id,
-    bytes memory _key,
-    address _sigVerifier,
-    PublicKeyFormat _format,
-    bytes4 _verifyFnSelector
-  ) internal {
+  function _addPublicKey(uint256 _id, bytes memory _key, address _sigVerifier) internal {
     PublicKey[] storage publicKeys = accounts[_id].publicKeys;
     if (!(publicKeys.length < 3)) revert IndexOutOfBounds();
 
-    PublicKey memory publicKey = PublicKey(_format, _key, _sigVerifier, _verifyFnSelector);
+    PublicKey memory publicKey = PublicKey(_key, _sigVerifier);
     publicKeys.push(publicKey);
 
-    emit PublicKeyAdded(_id, uint8(_format), _key);
+    emit PublicKeyAdded(_id, _key);
   }
 
   function _setSudoAddress(uint256 _id, address _sudo) internal {

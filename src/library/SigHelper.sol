@@ -2,6 +2,8 @@
 pragma solidity ^0.8.23;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import {ERC1271_SUCCESS} from "@~/library/Structs.sol";
 
 error InvalidSignatureLength();
 
@@ -43,8 +45,8 @@ library SignatureVerifier {
     bytes32 hash,
     bytes calldata signature,
     address signer
-  ) public pure returns (bool) {
-    return hash.recover(signature) == signer;
+  ) public view returns (bool) {
+    return verify(hash, signer, signature) == signer;
   }
 
   /**
@@ -57,10 +59,11 @@ library SignatureVerifier {
     bytes32 hash,
     bytes calldata signatures,
     address[2] memory signers
-  ) public pure returns (bool) {
+  ) public view returns (bool) {
     if (total(signatures) != 2) revert InvalidSignatureLength();
     (bytes memory sig0, bytes memory sig1) = extractTwoECDSASignatures(signatures);
-    return hash.recover(sig0) == signers[0] && hash.recover(sig1) == signers[1];
+    return
+      verify(hash, signers[0], sig0) == signers[0] && verify(hash, signers[1], sig1) == signers[1];
   }
 
   /**
@@ -73,10 +76,11 @@ library SignatureVerifier {
     bytes32 hash,
     bytes calldata signature,
     address[2] memory signers
-  ) public pure returns (bool) {
+  ) public view returns (bool) {
     if (total(signature) != 1) revert InvalidSignatureLength();
-    address signer = hash.recover(signature);
-    return signer == signers[0] || signer == signers[1];
+    address signer0 = verify(hash, signers[0], signature);
+    address signer1 = verify(hash, signers[1], signature);
+    return signer0 == signers[0] || signer1 == signers[1];
   }
 
   /**
@@ -89,10 +93,12 @@ library SignatureVerifier {
     bytes32 hash,
     bytes calldata signature,
     address[3] memory signers
-  ) public pure returns (bool) {
+  ) public view returns (bool) {
     if (total(signature) != 1) revert InvalidSignatureLength();
-    address signer = hash.recover(signature);
-    return signer == signers[0] || signer == signers[1] || signer == signers[2];
+    address signer0 = verify(hash, signers[0], signature);
+    address signer1 = verify(hash, signers[1], signature);
+    address signer2 = verify(hash, signers[2], signature);
+    return signer0 == signers[0] || signer1 == signers[1] || signer2 == signers[2];
   }
 
   /**
@@ -109,5 +115,40 @@ library SignatureVerifier {
         result := 2
       }
     }
+  }
+
+  /**
+   * tries to verify the associated signature against an EOA or a Smart Account
+   * currently only supports ERC-1271 for already deployed accounts
+   * @dev See ERC-6492: https://eips.ethereum.org/EIPS/eip-6492
+   * @param hash         Bytes32 digets
+   * @param signer       Expected valid signer
+   * @param signature    The signature to be checked
+   */
+  function verify(
+    bytes32 hash,
+    address signer,
+    bytes memory signature
+  ) public view returns (address) {
+    if (!_isContract(signer)) {
+      return hash.recover(signature);
+    }
+
+    (bool success, bytes memory ret) = signer.staticcall(
+      abi.encodeWithSelector(IERC1271.isValidSignature.selector, hash, signature)
+    );
+    if (success && abi.decode(ret, (bytes4)) == ERC1271_SUCCESS) {
+      return signer;
+    }
+
+    return address(0);
+  }
+
+  function _isContract(address account) internal view returns (bool) {
+    uint256 size;
+    assembly {
+      size := extcodesize(account)
+    }
+    return size > 0;
   }
 }
