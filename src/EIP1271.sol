@@ -8,7 +8,7 @@ import "@~/library/SigHelper.sol";
 contract EIP1271 is EIP712 {
   using SignatureVerifier for bytes32;
 
-  bytes32 public constant SUDO_RECOVER_TYPEHASH =
+  bytes32 public constant SUDO_TYPEHASH =
     keccak256("isValidSudoSignature(uint256 oid,uint256 nonce,uint256 deadline, address sudo)");
 
   bytes32 public constant RECOVERY_TYPEHASH =
@@ -49,7 +49,7 @@ contract EIP1271 is EIP712 {
   ) external view returns (bytes4 magicValue) {
     if (block.timestamp > deadline) revert SignatureExpired();
     return
-      _hashTypedDataV4(keccak256(abi.encode(SUDO_RECOVER_TYPEHASH, oid, nonce, deadline, sudo)))
+      _hashTypedDataV4(keccak256(abi.encode(SUDO_TYPEHASH, oid, nonce, deadline, sudo)))
         .validateOneSignature(signature, sudo)
         ? MAGICVALUE
         : SIG_VERIFICATION_FAILED;

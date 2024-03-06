@@ -18,14 +18,21 @@ contract OIDResolver is SchemaResolver, Sudo {
     Attestation calldata attestation,
     uint256 value
   ) internal virtual override returns (bool) {
-    // todo
+    (value);
+    (uint256 id, ) = abi.decode(attestation.data, (uint256, string));
+    if (oidRegistry.getOid(id) == 0) {
+      oidRegistry.registerWithFid(id);
+    }
+    return true;
   }
 
   function onRevoke(
     Attestation calldata attestation,
     uint256 value
   ) internal virtual override returns (bool) {
-    // todo
+    (attestation);
+    (value);
+    return true;
   }
 
   function farcasterLink(
@@ -33,6 +40,6 @@ contract OIDResolver is SchemaResolver, Sudo {
     bytes32 oid,
     bytes32 fid
   ) external onlyOwner returns (bool) {
-    // todo
+    // todo: attest that oid of account provably belongs to fid
   }
 }

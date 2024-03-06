@@ -4,14 +4,10 @@ pragma solidity ^0.8.23;
 import "@~/library/Structs.sol";
 import "@~/UserRegistry.sol";
 
-error NotRegistered();
-error AlreadyRegistered();
-error NotSudoable();
-error NotRegistrar();
-error NotResolver();
+import {IOidRegistry} from "@~/interfaces/IOidRegistry.sol";
 
 // we can use create 2 to determine the address of this contract. enabling us to deploy the resolver before this
-contract OIDRegistry is UserRegistry {
+contract OIDRegistry is IOidRegistry, UserRegistry {
   uint256 public oidCounter;
 
   mapping(address owner => uint256 oid) oidOf;
@@ -24,20 +20,14 @@ contract OIDRegistry is UserRegistry {
 
   address public immutable eip1271;
 
-  modifier onlyRegistrar() {
-    if (msg.sender != registrar) revert NotRegistrar();
-    _;
-  }
-
   modifier onlyResolver() {
     if (msg.sender != resolver) revert NotResolver();
     _;
   }
 
-  constructor(address _resolver, address _registrar, address _eip1271) {
+  constructor(address _resolver, address _eip1271) {
     oidCounter = 1;
     resolver = _resolver;
-    registrar = _registrar;
     eip1271 = _eip1271;
   }
 
@@ -57,11 +47,11 @@ contract OIDRegistry is UserRegistry {
     oidOf[user] = id;
   }
 
-  function registerWithFid(uint256 _fid) public onlyRegistrar {
+  function registerWithFid(uint256 _fid) public onlyResolver {
     _setFid(_fid, ++oidCounter);
   }
 
-  function registerMultipleWithFid(uint256[] calldata _fids) public onlyRegistrar {
+  function registerMultipleWithFid(uint256[] calldata _fids) public onlyResolver {
     for (uint256 i = 0; i < _fids.length; i++) {
       _setFid(_fids[i], ++oidCounter);
     }
