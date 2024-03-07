@@ -5,7 +5,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@~/library/Structs.sol";
 import "@~/library/SigHelper.sol";
 
-contract EIP1271 is EIP712 {
+contract ERC1271 is EIP712 {
   using SignatureVerifier for bytes32;
 
   bytes32 public constant SUDO_TYPEHASH =
