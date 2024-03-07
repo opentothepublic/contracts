@@ -2,11 +2,8 @@
 pragma solidity ^0.8.23;
 
 import {IOidRegistry} from "@~/interfaces/IOidRegistry.sol";
-
-import {Sudo, Ownable} from "@~/Sudo.sol";
-
+import {Sudo, Ownable} from "@~/abstract/Sudo.sol";
 import {SchemaResolver} from "@eas/contracts/resolver/SchemaResolver.sol";
-
 import {IEAS, Attestation} from "@eas/contracts/IEAS.sol";
 
 contract OIDResolver is SchemaResolver, Sudo {
@@ -21,7 +18,7 @@ contract OIDResolver is SchemaResolver, Sudo {
     (value);
     (uint256 id, ) = abi.decode(attestation.data, (uint256, string));
     if (oidRegistry.getOid(id) == 0) {
-      oidRegistry.registerWithFid(id);
+      oidRegistry.registerWithFid(id, attestation.recipient);
     }
     return true;
   }
@@ -33,13 +30,5 @@ contract OIDResolver is SchemaResolver, Sudo {
     (attestation);
     (value);
     return true;
-  }
-
-  function farcasterLink(
-    address account,
-    bytes32 oid,
-    bytes32 fid
-  ) external onlyOwner returns (bool) {
-    // todo: attest that oid of account provably belongs to fid
   }
 }
