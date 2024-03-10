@@ -101,7 +101,7 @@ abstract contract UserRegistry is IUserRegistry, Storage {
   ) internal {
     PublicKey memory publicKey = PublicKey(bytes.concat(bytes20(user)), sigVerifier);
 
-    PublicKey[] memory accountKeys;
+    PublicKey[] memory accountKeys = new PublicKey[](1);
     accountKeys[0] = publicKey;
 
     accounts[id] = OTTPUser({

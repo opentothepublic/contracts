@@ -18,7 +18,7 @@ contract OIDResolver is SchemaResolver, Sudo {
     (value);
     (uint256 id, ) = abi.decode(attestation.data, (uint256, string));
     if (oidRegistry.getOid(id) == 0) {
-      oidRegistry.registerWithFid(id, attestation.recipient);
+      oidRegistry.registerWithFid(id, attestation.attester);
     }
     return true;
   }
