@@ -11,9 +11,9 @@ abstract contract Sudo is Ownable2Step {
 
   IOidRegistry public oidRegistry;
 
-  function recover(address from, address to, bytes calldata sig) external onlyOwner {
-    // oidRegistry.recover(from, to, sig);
-  }
+  // function recover(address from, address to, bytes calldata sig) external onlyOwner {
+  //   // oidRegistry.recover(from, to, sig);
+  // }
 
   function setOidRegistry(IOidRegistry _oidRegistry) external onlyOwner {
     emit SetOidRegistry(oidRegistry, _oidRegistry);

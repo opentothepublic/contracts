@@ -13,6 +13,8 @@ struct PublicKey {
   address sigVerifier;
 }
 
+uint256 constant MAX_KEY_LENGTH = 3;
+
 // bytes4(keccak256("isValidSignature(bytes32,(uint8,bytes,address,bytes4),bytes)"))
 bytes4 constant MAGICVALUE = 0xbaca03f5;
 
