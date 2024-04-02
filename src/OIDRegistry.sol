@@ -1,45 +1,82 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@~/library/Structs.sol";
-import "@~/UserRegistry.sol";
-
+import "@~/abstract/UserRegistry.sol";
 import {IOidRegistry} from "@~/interfaces/IOidRegistry.sol";
 
-// we can use create 2 to determine the address of this contract. enabling us to deploy the resolver before this
-contract OIDRegistry is IOidRegistry, UserRegistry {
-  uint256 public oidCounter;
+contract OIDRegistry is IOidRegistry, UserRegistry, Initializable, UUPSUpgradeable {
+  address public resolver;
 
-  mapping(address owner => uint256 oid) oidOf;
-
-  mapping(uint256 fid => uint256 oid) fidToOid;
-
-  address public immutable resolver;
-
-  address public immutable registrar;
-
-  address public immutable eip1271;
+  address public eip1271;
 
   modifier onlyResolver() {
     if (msg.sender != resolver) revert NotResolver();
     _;
   }
 
-  constructor(address _resolver, address _eip1271) {
-    oidCounter = 1;
+  constructor() {
+    _disableInitializers();
+  }
+
+  function initialize(address _resolver, address _eip1271) public initializer {
     resolver = _resolver;
     eip1271 = _eip1271;
   }
 
-  function register() public {
-    uint256 id = _createOid(msg.sender);
-    _createUser(id, msg.sender, [address(0), address(0)], eip1271);
+  /**
+   * @inheritdoc IOidRegistry
+   */
+  function getOid(uint256 _fid) public view returns (uint256) {
+    return fidToOid[_fid];
   }
 
-  function registerWithRecoveryAddresses(address _recovery1, address _recovery2) public {
-    uint256 id = _createOid(msg.sender);
-    _createUser(id, msg.sender, [_recovery1, _recovery2], eip1271);
+  /**
+   * @inheritdoc IOidRegistry
+   */
+  function getOid(address _address) public view returns (uint256) {
+    return oidOf[_address];
   }
+
+  /**
+   * @inheritdoc IOidRegistry
+   */
+  function register() public {
+    _register(msg.sender, [address(0), address(0)]);
+  }
+
+  /**
+   * @inheritdoc IOidRegistry
+   */
+  function registerWithRecoveryAddresses(address _recovery1, address _recovery2) public {
+    _register(msg.sender, [_recovery1, _recovery2]);
+  }
+
+  /**
+   * @inheritdoc IOidRegistry
+   */
+  function registerWithFid(uint256 _fid, address _attester) public onlyResolver {
+    _setFid(_fid, _register(_attester, [address(0), address(0)]));
+  }
+
+  /**
+   * @inheritdoc IOidRegistry
+   */
+  function registerMultipleWithFid(
+    uint256[] calldata _fids,
+    address[] calldata _attesters
+  ) public onlyResolver {
+    if (_fids.length != _attesters.length) revert IndexOutOfBounds();
+    for (uint256 i = 0; i < _fids.length; i++) {
+      _setFid(_fids[i], _register(_attesters[i], [address(0), address(0)]));
+    }
+  }
+
+  /*//////////////////////////////////////////////////////////////
+                              INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
   function _createOid(address user) internal returns (uint256 id) {
     if (oidOf[user] != 0) revert AlreadyRegistered();
@@ -47,44 +84,9 @@ contract OIDRegistry is IOidRegistry, UserRegistry {
     oidOf[user] = id;
   }
 
-  function registerWithFid(uint256 _fid) public onlyResolver {
-    _setFid(_fid, ++oidCounter);
-  }
-
-  function registerMultipleWithFid(uint256[] calldata _fids) public onlyResolver {
-    for (uint256 i = 0; i < _fids.length; i++) {
-      _setFid(_fids[i], ++oidCounter);
-    }
-  }
-
-  function getOid(uint256 _fid) public view returns (uint256) {
-    return fidToOid[_fid];
-  }
-
-  function getOid(address _address) public view returns (uint256) {
-    return oidOf[_address];
-  }
-
-  function getSudoAddress(uint256 _oid) public view returns (address) {
-    return accounts[_oid].sudo;
-  }
-
-  function getRecoveryAddresses(uint256 _oid) public view returns (address[2] memory) {
-    return accounts[_oid].recovery;
-  }
-
-  function getPublicKeyAtIndex(uint256 _oid, uint256 _index) public view returns (bytes memory) {
-    if (!(_index < 3)) revert IndexOutOfBounds();
-    return accounts[_oid].publicKeys[_index].key;
-  }
-
-  function farcasterLink(uint256 _id, address _to) external onlyResolver {
-    if (oidOf[_to] != 0) {
-      fidToOid[_id] = oidOf[_to];
-    } else {
-      oidOf[_to] = fidToOid[_id];
-      _createUser(fidToOid[_id], msg.sender, [address(0), address(0)], eip1271);
-    }
+  function _register(address _to, address[2] memory recovery) internal returns (uint256 id) {
+    id = _createOid(_to);
+    _createUser(id, _to, recovery, eip1271);
   }
 
   function _setFid(uint256 _fid, uint256 _oid) internal {
@@ -92,7 +94,7 @@ contract OIDRegistry is IOidRegistry, UserRegistry {
     fidToOid[_fid] = _oid;
   }
 
-  // fn recover -> initiates user defined oid recovery
-
-  // fn sudoRecover -> initiates protocol based recovery if user is sudoable
+  function _authorizeUpgrade(address newImplementation) internal view override onlyResolver {
+    (newImplementation);
+  }
 }
