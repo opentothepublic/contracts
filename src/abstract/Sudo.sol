@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {IOidRegistry} from "@~/interfaces/IOidRegistry.sol";
+import {OIDRegistry} from "@~/OIDRegistry.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /// initiates protocol based recovery if user is sudoable
 /// https://github.com/farcasterxyz/contracts/blob/main/src/RecoveryProxy.sol
 abstract contract Sudo is Ownable2Step {
-  event SetOidRegistry(IOidRegistry oldIdRegistry, IOidRegistry newIdRegistry);
+  event SetOidRegistry(OIDRegistry oldIdRegistry, OIDRegistry newIdRegistry);
 
-  IOidRegistry public oidRegistry;
+  OIDRegistry public oidRegistry;
 
-  // function recover(address from, address to, bytes calldata sig) external onlyOwner {
-  //   // oidRegistry.recover(from, to, sig);
-  // }
-
-  function setOidRegistry(IOidRegistry _oidRegistry) external onlyOwner {
-    emit SetOidRegistry(oidRegistry, _oidRegistry);
+  function setOidRegistry(OIDRegistry _oidRegistry) external onlyOwner {
     oidRegistry = _oidRegistry;
+    emit SetOidRegistry(oidRegistry, _oidRegistry);
+  }
+
+  function upgradeRegistry(address newImplementation, bytes calldata data) external onlyOwner {
+    oidRegistry.upgradeToAndCall(newImplementation, data);
   }
 }

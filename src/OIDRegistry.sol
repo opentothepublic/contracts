@@ -74,19 +74,25 @@ contract OIDRegistry is IOidRegistry, UserRegistry, Initializable, UUPSUpgradeab
     }
   }
 
+  function changeResolver(address _newResolver) public onlyResolver {
+    resolver = _newResolver;
+  }
+
   /*//////////////////////////////////////////////////////////////
                               INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-  function _createOid(address user) internal returns (uint256 id) {
+  function _createOid(address user) internal returns (uint256) {
     if (oidOf[user] != 0) revert AlreadyRegistered();
-    id = ++oidCounter;
+    uint256 id = ++oidCounter;
     oidOf[user] = id;
+    return id;
   }
 
-  function _register(address _to, address[2] memory recovery) internal returns (uint256 id) {
-    id = _createOid(_to);
+  function _register(address _to, address[2] memory recovery) internal returns (uint256) {
+    uint256 id = _createOid(_to);
     _createUser(id, _to, recovery, eip1271);
+    return id;
   }
 
   function _setFid(uint256 _fid, uint256 _oid) internal {

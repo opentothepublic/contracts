@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/utils/Create2.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract ResolverHarness is OIDResolver {
-  constructor(IEAS eas, IOidRegistry registry, address sudoer) OIDResolver(eas, registry, sudoer) {}
+  constructor(IEAS eas, OIDRegistry registry, address sudoer) OIDResolver(eas, registry, sudoer) {}
 
   function exposed_onAttest(Attestation calldata attestation, uint256 value) public returns (bool) {
     return onAttest(attestation, value);

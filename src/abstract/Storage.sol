@@ -6,7 +6,7 @@ import {OTTPUser} from "@~/library/Structs.sol";
 abstract contract Storage {
   uint256 public oidCounter;
 
-  mapping(address owner => uint256 oid) oidOf;
+  mapping(address user => uint256 oid) oidOf;
 
   mapping(uint256 fid => uint256 oid) fidToOid;
 
