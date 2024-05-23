@@ -1,34 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {OIDRegistry} from "@~/OIDRegistry.sol";
-import {Sudo, Ownable} from "@~/abstract/Sudo.sol";
+import {OIDRegistry} from "@~/registries/OIDRegistry.sol";
 import {SchemaResolver} from "@eas/contracts/resolver/SchemaResolver.sol";
 import {IEAS, Attestation} from "@eas/contracts/IEAS.sol";
+import {Sudo} from "@~/utils/Sudo.sol";
 
-contract OIDResolver is SchemaResolver, Sudo {
-  constructor(IEAS eas, OIDRegistry registry, address sudoer) Ownable(sudoer) SchemaResolver(eas) {
-    oidRegistry = registry;
-  }
+contract OIDResolver is SchemaResolver {
+    Sudo public sudo;
 
-  function onAttest(
-    Attestation calldata attestation,
-    uint256 value
-  ) internal virtual override returns (bool) {
-    (value);
-    (uint256 id, ) = abi.decode(attestation.data, (uint256, string));
-    if (oidRegistry.getOid(id) == 0) {
-      oidRegistry.registerWithFid(id, attestation.attester);
+    constructor(IEAS eas, Sudo _sudo) SchemaResolver(eas) {
+        sudo = _sudo;
     }
-    return true;
-  }
 
-  function onRevoke(
-    Attestation calldata attestation,
-    uint256 value
-  ) internal virtual override returns (bool) {
-    (attestation);
-    (value);
-    return true;
-  }
+    function onAttest(Attestation calldata attestation, uint256 value) internal virtual override returns (bool) {
+        (value);
+        (uint256 id,) = abi.decode(attestation.data, (uint256, string));
+        if (sudo.oid_registry().get_oid(id) == 0) {
+            // sudo.oid_registry().register_with_fid(id, attestation.attester);
+        }
+        return true;
+    }
+
+    function onRevoke(Attestation calldata attestation, uint256 value) internal virtual override returns (bool) {
+        (attestation);
+        (value);
+        return true;
+    }
 }

@@ -1,19 +1,55 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-struct OTTPUser {
-  bytes32 handle;
-  PublicKey[] publicKeys;
-  address[2] recovery;
-  address sudo;
+enum OrganizationLevel {
+    FirstLevel,
+    SecondLevel
+}
+
+enum Label {
+    Project,
+    Proposal,
+    Milestone
+}
+
+struct Block {
+    Identity user;
+    uint64 timestamp;
+    bytes content;
 }
 
 struct PublicKey {
-  bytes key;
-  address sigVerifier;
+    address key;
+    address signature_verifier;
 }
 
-uint256 constant MAX_KEY_LENGTH = 3;
+struct Identity {
+    bytes32 handle;
+    PublicKey[] public_keys;
+    address[2] recovery_addresses;
+}
+
+struct Organization {
+    string name;
+    string url;
+    OrganizationLevel level;
+    Identity owner;
+    Identity[] managed_identities;
+    uint256 association;
+    bool is_verified;
+}
+
+struct Object {
+    string title;
+    string description;
+    Label label;
+    Identity owner;
+    Block[] blocks;
+}
+
+uint256 constant MAX_PUBLIC_KEYS_LENGTH = 3;
+
+uint256 constant MAX_MANAGED_KEYS_LENGTH = 5;
 
 // bytes4(keccak256("isValidSignature(bytes32,(uint8,bytes,address,bytes4),bytes)"))
 bytes4 constant MAGICVALUE = 0xbaca03f5;

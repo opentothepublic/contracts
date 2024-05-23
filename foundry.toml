@@ -5,7 +5,7 @@ libs = ['lib']
 fs_permissions = [{ access = "read", path = "./"}]
 optimizer = true
 optimizer_runs = 100000
-solc_version = "0.8.23"
+solc_version = "0.8.26"
 via_ir = true
 
 [rpc_endpoints]
