@@ -10,25 +10,73 @@ import {OrganizationRegistry} from "./OrganizationRegistry.sol";
 import "../library/Errors.sol";
 
 contract OIDRegistry is Initializable, UUPSUpgradeable {
+    /*//////////////////////////////////////////////////////////////
+                                EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @dev Emitted for the attestation that creates an OID.
+     * @param eas_uid - The unique identifier of the attestation.
+     * @param oid - The unique identifier of the OID.
+     */
+    event OIDAttested(bytes32 indexed eas_uid, uint256 indexed oid);
+
+    /**
+     * @dev Emitted for the attestation that creates an organization.
+     * @param eas_uid The unique identifier of the attestation.
+     * @param parent_orgId The parent organization ID.
+     * @param orgId The organization ID.
+     */
+    event OrganizationIdAttested(bytes32 indexed eas_uid, uint256 indexed parent_orgId, uint256 indexed orgId);
+
+    /**
+     * @dev Emitted when a new object is created.
+     * @param eas_uid The unique identifier of the object.
+     * @param ref_eas_uid The reference unique identifier of the object.
+     * @param label The label of the object.
+     * @param owner The owner of the object.
+     */
+    event ObjectCreated(bytes32 indexed eas_uid, bytes32 indexed ref_eas_uid, Label label, Identity owner);
+
+    /**
+     * @dev Emitted when a new block is added to an object.
+     * @param ref_eas_uid The reference unique identifier of the object.
+     * @param owner The owner of the block.
+     * @param timestamp The timestamp of the block creation.
+     */
+    event BlockAdded(bytes32 indexed ref_eas_uid, Identity owner, uint64 timestamp);
+
+    /**
+     * @dev Emitted when the resolver is changed.
+     * @param oldResolver The address of the old resolver.
+     * @param newResolver The address of the new resolver.
+     */
+    event ResolverChanged(OIDResolver indexed oldResolver, OIDResolver indexed newResolver);
+
+    /*//////////////////////////////////////////////////////////////
+                              VARIABLES
+    //////////////////////////////////////////////////////////////*/
+
     OIDResolver public resolver;
-
     UserRegistry internal user_registry;
-
     OrganizationRegistry internal organization_registry;
-
     uint256 public oid_counter;
-
     uint256 public org_id_counter;
 
-    mapping(address user => uint256 oid) internal oid_of;
+    /*//////////////////////////////////////////////////////////////
+                              MAPPINGS
+    //////////////////////////////////////////////////////////////*/
 
-    mapping(uint256 fid => uint256 oid) internal fid_to_oid;
+    mapping(address => uint256) internal oid_of;
+    mapping(uint256 => uint256) internal fid_to_oid;
+    mapping(bytes32 => uint256) internal eas_uid_to_oid;
+    mapping(bytes32 => uint256) internal eas_uid_to_orgId;
+    mapping(bytes32 => Object) internal objects;
+    mapping(bytes32 => bool) private object_exists;
 
-    mapping(bytes32 eas_uid => uint256 orgId) internal eas_uid_to_orgId;
-
-    mapping(bytes32 eas_uid => Object) internal objects;
-
-    mapping(bytes32 eas_uid => bool object_exists) private object_exists;
+    /*//////////////////////////////////////////////////////////////
+                              MODIFIERS
+    //////////////////////////////////////////////////////////////*/
 
     modifier onlyResolver() {
         require(msg.sender == address(resolver), NotResolver());
@@ -45,12 +93,26 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
         _;
     }
 
+    /*//////////////////////////////////////////////////////////////
+                              CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
     constructor() {
         _disableInitializers();
     }
 
+    /*//////////////////////////////////////////////////////////////
+                          EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @dev Initializes the contract.
+     * @param _resolver The address of the resolver.
+     * @param _user_registry The address of the user registry.
+     * @param _organization_registry The address of the organization registry.
+     */
     function initialize(OIDResolver _resolver, UserRegistry _user_registry, OrganizationRegistry _organization_registry)
-        public
+        external
         initializer
     {
         resolver = _resolver;
@@ -58,45 +120,19 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
         organization_registry = _organization_registry;
     }
 
-    function get_oid(uint256 _fid) public view returns (uint256) {
-        return fid_to_oid[_fid];
-    }
-
-    function get_oid(address _address) public view returns (uint256) {
-        return oid_of[_address];
-    }
-
-    function get_org_id(bytes32 _attestation_uid) public view returns (uint256) {
-        return eas_uid_to_orgId[_attestation_uid];
-    }
-
-    function next_oid() internal returns (uint256) {
-        return ++oid_counter;
-    }
-
-    function next_org_id() internal returns (uint256) {
-        return ++org_id_counter;
-    }
-
-    function register() public {
-        register(msg.sender, [address(0), address(0)]);
-    }
-
-    function register_with_recovery_addresses(address recovery_a, address recovery_b) public {
-        register(msg.sender, [recovery_a, recovery_b]);
-    }
-
-    function register_with_fid(uint256 _fid, address _attester) public onlyResolver returns (uint256 oid) {
-        oid = register(_attester, [address(0), address(0)]);
-        link_fid(_fid, oid);
-    }
-
+    /**
+     * @dev Registers a new organization.
+     * @param eas_uid The unique identifier of the attestation.
+     * @param offchain_uri The offchain URI of the organization.
+     * @param association The association of the organization.
+     * @param _attester The address of the attester.
+     */
     function register_organization(
         bytes32 eas_uid,
         string calldata offchain_uri,
         uint256 association,
         address _attester
-    ) public onlyResolver {
+    ) external onlyResolver {
         uint256 owner = oid_of[_attester];
         require(owner != 0, NotRegistered());
         uint256 org_id = next_org_id();
@@ -108,42 +144,45 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
         }
 
         eas_uid_to_orgId[eas_uid] = org_id;
+        emit OrganizationIdAttested(eas_uid, association, org_id);
     }
 
-    function try_register(uint256 _fid, address _attester) external onlyResolver returns (uint256 oid) {
+    /**
+     * @dev Attempts to register a new user with an FID.
+     * @param _fid The FID of the user.
+     * @param eas_uid The unique identifier of the attestation.
+     * @param _attester The address of the attester.
+     * @return oid The unique identifier of the OID.
+     */
+    function try_register(uint256 _fid, bytes32 eas_uid, address _attester)
+        external
+        onlyResolver
+        returns (uint256 oid)
+    {
         oid = get_oid(_fid);
         if (oid == 0) {
-            oid = register_with_fid(_fid, _attester);
+            oid = register_with_fid(_fid, eas_uid, _attester);
         }
         return oid;
     }
 
-    function register(address _to, address[2] memory recovery) internal returns (uint256) {
-        if (oid_of[_to] != 0) revert AlreadyRegistered();
-        uint256 id = next_oid();
-        oid_of[_to] = id;
-        user_registry.create_user(id, _to, recovery, address(user_registry));
-        return id;
-    }
-
-    function link_fid(uint256 _fid, uint256 _oid) internal {
-        if (fid_to_oid[_fid] != 0) revert AlreadyRegistered();
-        fid_to_oid[_fid] = _oid;
-    }
-
-    function link_address(uint256 _oid, address _address) external onlyUserRegistry {
-        if (oid_of[_address] != 0) revert AlreadyRegistered();
-        oid_of[_address] = _oid;
-    }
-
-    function unlink_address(address _address) external onlyUserRegistry {
-        oid_of[_address] = 0;
-    }
-
+    /**
+     * @dev Changes the resolver.
+     * @param new_resolver The address of the new resolver.
+     */
     function change_resolver(OIDResolver new_resolver) external onlySudo {
+        emit ResolverChanged(resolver, new_resolver);
         resolver = new_resolver;
     }
 
+    /**
+     * @dev Creates a new object.
+     * @param _fid The FID of the user.
+     * @param eas_uid The unique identifier of the attestation.
+     * @param ref_eas_uid The reference unique identifier of the attestation.
+     * @param label The label of the object.
+     * @param offchain_uri The offchain URI of the object.
+     */
     function create_object(
         uint256 _fid,
         bytes32 eas_uid,
@@ -151,7 +190,7 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
         Label label,
         string calldata offchain_uri
     ) external onlyResolver {
-        require(eas_uid_to_orgId[ref_eas_uid] != 0, InvalidReference());
+        require(eas_uid_to_orgId[ref_eas_uid] != 0 || eas_uid_to_oid[ref_eas_uid] != 0, InvalidReference());
 
         uint256 oid = fid_to_oid[_fid];
         require(oid != 0, NotRegistered());
@@ -159,8 +198,16 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
         Object memory obj = Object(offchain_uri, label, owner, new Block[](0));
         objects[eas_uid] = obj;
         object_exists[eas_uid] = true;
+
+        emit ObjectCreated(eas_uid, ref_eas_uid, label, owner);
     }
 
+    /**
+     * @dev Creates a new block.
+     * @param _fid The FID of the user.
+     * @param ref_eas_uid The reference unique identifier of the attestation.
+     * @param data The data of the block.
+     */
     function create_block(uint256 _fid, bytes32 ref_eas_uid, string calldata data) external onlyResolver {
         require(object_exists[ref_eas_uid], InvalidReference());
         uint256 oid = fid_to_oid[_fid];
@@ -169,12 +216,133 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
         Block memory blk = Block(owner, uint64(block.timestamp), data);
 
         add_block_to_object(ref_eas_uid, blk);
+        emit BlockAdded(ref_eas_uid, owner, uint64(block.timestamp));
     }
 
+    /*//////////////////////////////////////////////////////////////
+                           PUBLIC FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @dev Returns the OID for a given FID.
+     * @param _fid The FID of the user.
+     * @return The OID of the user.
+     */
+    function get_oid(uint256 _fid) public view returns (uint256) {
+        return fid_to_oid[_fid];
+    }
+
+    /**
+     * @dev Returns the OID for a given address.
+     * @param _address The address of the user.
+     * @return The OID of the user.
+     */
+    function get_oid(address _address) public view returns (uint256) {
+        return oid_of[_address];
+    }
+
+    /**
+     * @dev Returns the organization ID for a given attestation UID.
+     * @param _attestation_uid The unique identifier of the attestation.
+     * @return The organization ID.
+     */
+    function get_org_id(bytes32 _attestation_uid) public view returns (uint256) {
+        return eas_uid_to_orgId[_attestation_uid];
+    }
+
+    /**
+     * @dev Registers a new user with an FID.
+     * @param _fid The FID of the user.
+     * @param eas_uid The unique identifier of the attestation.
+     * @param _attester The address of the attester.
+     * @return oid The unique identifier of the OID.
+     */
+    function register_with_fid(uint256 _fid, bytes32 eas_uid, address _attester)
+        public
+        onlyResolver
+        returns (uint256 oid)
+    {
+        oid = register(_attester, [address(0), address(0)]);
+        eas_uid_to_oid[eas_uid] = oid;
+        link_fid(_fid, oid);
+        emit OIDAttested(eas_uid, oid);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                      INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @dev Generates the next OID.
+     * @return The next OID.
+     */
+    function next_oid() internal returns (uint256) {
+        return ++oid_counter;
+    }
+
+    /**
+     * @dev Generates the next organization ID.
+     * @return The next organization ID.
+     */
+    function next_org_id() internal returns (uint256) {
+        return ++org_id_counter;
+    }
+
+    /**
+     * @dev Registers a new user.
+     * @param _to The address of the user.
+     * @param recovery The recovery addresses of the user.
+     * @return The unique identifier of the OID.
+     */
+    function register(address _to, address[2] memory recovery) internal returns (uint256) {
+        require(oid_of[_to] == 0, AlreadyRegistered());
+        uint256 id = next_oid();
+        oid_of[_to] = id;
+        user_registry.create_user(id, _to, recovery, address(user_registry));
+        return id;
+    }
+
+    /**
+     * @dev Links an FID to an OID.
+     * @param _fid The FID of the user.
+     * @param _oid The OID of the user.
+     */
+    function link_fid(uint256 _fid, uint256 _oid) internal {
+        require(fid_to_oid[_fid] == 0, AlreadyRegistered());
+        fid_to_oid[_fid] = _oid;
+    }
+
+    /**
+     * @dev Links an address to an OID.
+     * @param _oid The OID of the user.
+     * @param _address The address of the user.
+     */
+    function link_address(uint256 _oid, address _address) external onlyUserRegistry {
+        require(oid_of[_address] == 0, AlreadyRegistered());
+        oid_of[_address] = _oid;
+    }
+
+    /**
+     * @dev Unlinks an address from an OID.
+     * @param _address The address of the user.
+     */
+    function unlink_address(address _address) external onlyUserRegistry {
+        oid_of[_address] = 0;
+    }
+
+    /**
+     * @dev Adds a block to an object.
+     * @param ref_eas_uid The reference unique identifier of the attestation.
+     * @param _block The block to be added.
+     */
     function add_block_to_object(bytes32 ref_eas_uid, Block memory _block) internal {
         objects[ref_eas_uid].blocks.push(_block);
     }
 
+    /**
+     * @dev Authorizes an upgrade to a new implementation.
+     * @param new_implementation The address of the new implementation.
+     */
     function _authorizeUpgrade(address new_implementation) internal virtual override onlySudo {
         (new_implementation);
     }

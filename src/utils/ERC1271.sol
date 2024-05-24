@@ -6,8 +6,16 @@ import {SignatureExpired} from "../library/Errors.sol";
 import {MAGICVALUE, PublicKey, SIG_VERIFICATION_FAILED} from "@~/library/Structs.sol";
 import {SignatureVerifier} from "@~/library/SigHelper.sol";
 
+/**
+ * @title ERC1271
+ * @dev This abstract contract implements the EIP-1271 interface for signature validation.
+ */
 abstract contract ERC1271 is EIP712 {
     using SignatureVerifier for bytes32;
+
+    /*//////////////////////////////////////////////////////////////
+    // Constants for the type hashes used in signature verification.
+    //////////////////////////////////////////////////////////////*/
 
     bytes32 public constant SUDO_TYPEHASH =
         keccak256("isValidSudoSignature(uint256 oid,uint256 nonce,uint256 deadline, address sudo)");
@@ -18,7 +26,13 @@ abstract contract ERC1271 is EIP712 {
 
     constructor() EIP712("OTTP Signature Verifier", "1") {}
 
-    // fnsig -> baca03f5
+    /**
+     * @dev Validates a single signature.
+     * @param hash The hash of the signed data.
+     * @param public_key The public key information of the signer.
+     * @param signature The signature to be validated.
+     * @return magicValue The result of the signature validation.
+     */
     function is_valid_signature(bytes32 hash, PublicKey memory public_key, bytes calldata signature)
         public
         view
@@ -33,6 +47,14 @@ abstract contract ERC1271 is EIP712 {
             : SIG_VERIFICATION_FAILED;
     }
 
+    /**
+     * @dev Validates a single signature with additional data.
+     * @param hash The hash of the signed data.
+     * @param public_key The public key information of the signer.
+     * @param signature The signature to be validated.
+     * @param data Additional data required for validation.
+     * @return The result of the signature validation.
+     */
     function is_valid_signature(bytes32 hash, PublicKey memory public_key, bytes calldata signature, bytes memory data)
         public
         view
@@ -45,6 +67,15 @@ abstract contract ERC1271 is EIP712 {
         ) ? MAGICVALUE : SIG_VERIFICATION_FAILED;
     }
 
+    /**
+     * @dev Validates a recovery signature.
+     * @param oid The object ID.
+     * @param nonce The nonce value.
+     * @param deadline The deadline for the signature.
+     * @param recovery_addresses The addresses used for recovery.
+     * @param signature The signature to be validated.
+     * @return The result of the recovery signature validation.
+     */
     function is_valid_recovery_signature(
         uint256 oid,
         uint256 nonce,
