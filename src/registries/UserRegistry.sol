@@ -110,6 +110,7 @@ contract UserRegistry is Nonce, ERC1271 {
         );
 
         users[oid].public_keys = [new_key];
+        increment_nonce(oid);
         emit UserRecovered(oid, new_key);
     }
 
