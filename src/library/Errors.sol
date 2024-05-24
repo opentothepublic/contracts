@@ -17,3 +17,4 @@ error SignatureExpired();
 error SignatureInvalid();
 error InvalidSignatureLength();
 error NotResolver();
+error InvalidReference();

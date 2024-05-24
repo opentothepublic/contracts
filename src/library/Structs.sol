@@ -15,7 +15,7 @@ enum Label {
 struct Block {
     Identity user;
     uint64 timestamp;
-    bytes content;
+    string content;
 }
 
 struct PublicKey {
@@ -30,8 +30,7 @@ struct Identity {
 }
 
 struct Organization {
-    string name;
-    string url;
+    string offchain_uri;
     OrganizationLevel level;
     Identity owner;
     Identity[] managed_identities;
@@ -40,8 +39,7 @@ struct Organization {
 }
 
 struct Object {
-    string title;
-    string description;
+    string offchain_uri;
     Label label;
     Identity owner;
     Block[] blocks;

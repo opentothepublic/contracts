@@ -8,6 +8,7 @@ import "../library/Errors.sol";
 
 contract OrganizationRegistry {
     UserRegistry internal immutable user_registry;
+
     Sudo internal immutable sudo;
 
     mapping(uint256 orgId => Organization) organizations;
@@ -40,12 +41,8 @@ contract OrganizationRegistry {
         return organizations[orgId].level;
     }
 
-    function organization_name(uint256 orgId) public view returns (string memory) {
-        return organizations[orgId].name;
-    }
-
-    function organization_url(uint256 orgId) public view returns (string memory) {
-        return organizations[orgId].url;
+    function organization_uri(uint256 orgId) public view returns (string memory) {
+        return organizations[orgId].offchain_uri;
     }
 
     function is_organization_verified(uint256 orgId) public view returns (bool) {
@@ -55,7 +52,9 @@ contract OrganizationRegistry {
     function get_parent_organization(uint256 orgId) public view returns (uint256, string memory) {
         return (
             organizations[orgId].association,
-            organizations[orgId].association == 0 ? "none" : organizations[organizations[orgId].association].name
+            organizations[orgId].association == 0
+                ? "none"
+                : organizations[organizations[orgId].association].offchain_uri
         );
     }
 
@@ -87,7 +86,7 @@ contract OrganizationRegistry {
         organizations[orgId].is_verified = true;
     }
 
-    function create_first_level_organization(uint256 orgId, string memory name, string memory url, uint256 attester_id)
+    function create_first_level_organization(uint256 orgId, string calldata offchain_uri, uint256 attester_id)
         public
         only_registry
         returns (uint256)
@@ -95,13 +94,12 @@ contract OrganizationRegistry {
         Identity memory identity = user_registry.get_user_identity(attester_id);
         require(identity.public_keys.length > 0, InvalidIdentity());
 
-        return create_organization(orgId, name, url, OrganizationLevel.FirstLevel, 0, identity, false);
+        return create_organization(orgId, offchain_uri, OrganizationLevel.FirstLevel, 0, identity, false);
     }
 
     function create_second_level_organization(
         uint256 orgId,
-        string memory name,
-        string memory url,
+        string calldata offchain_uri,
         uint256 association,
         uint256 attester_id
     ) public only_registry returns (uint256) {
@@ -112,21 +110,21 @@ contract OrganizationRegistry {
         require(org.level == OrganizationLevel.FirstLevel, InvalidOrgLevel());
         require(org.owner.public_keys[0].key == identity.public_keys[0].key, InvalidOrgAssociation());
 
-        return
-            create_organization(orgId, name, url, OrganizationLevel.SecondLevel, association, identity, org.is_verified);
+        return create_organization(
+            orgId, offchain_uri, OrganizationLevel.SecondLevel, association, identity, org.is_verified
+        );
     }
 
     function create_organization(
         uint256 orgId,
-        string memory name,
-        string memory url,
+        string calldata offchain_uri,
         OrganizationLevel level,
         uint256 association,
         Identity memory owner,
         bool is_verified
     ) internal returns (uint256) {
         Identity[] memory managed_identities;
-        organizations[orgId] = Organization(name, url, level, owner, managed_identities, association, is_verified);
+        organizations[orgId] = Organization(offchain_uri, level, owner, managed_identities, association, is_verified);
         return orgId;
     }
 }
