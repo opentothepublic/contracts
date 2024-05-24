@@ -225,7 +225,7 @@
       "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
       "cumulativeGasUsed": "0x4b1dab",
       "gasUsed": "0x2ec3c",
-      "contractAddress": "0x2ED04ACEd661A527242D8Fa9fF7542f30b8b5d43",
+      "contractAddress": null,
       "logs": [
         {
           "address": "0x2ED04ACEd661A527242D8Fa9fF7542f30b8b5d43",
@@ -296,7 +296,7 @@
   ],
   "pending": [],
   "returns": {},
-  "timestamp": 1710082300,
+  "timestamp": 1710082204,
   "chain": 84532,
   "multi": false,
   "commit": "e53d87e"
