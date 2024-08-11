@@ -91,7 +91,7 @@ contract OIDResolver is SchemaResolver {
     }
 
     function handle_fid_claim(uint256 fid, uint256 oid) public returns (bool) {
-        if (fid_to_oids[fid][oid]) {
+        if (fid_to_oids[fid][oid] || fid == 0) {
             return false;
         }
         fid_to_oids[fid][oid] = true;
