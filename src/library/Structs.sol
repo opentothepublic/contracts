@@ -64,7 +64,6 @@ struct Identity {
  * @param owner The identity of the owner of the organization.
  * @param managed_identities An array of identities managed by the organization.
  * @param association The ID of the associated parent organization, if any.
- * @param is_verified A boolean indicating whether the organization is verified.
  */
 struct Organization {
     string offchain_uri;
@@ -72,7 +71,6 @@ struct Organization {
     Identity owner;
     Identity[] managed_identities;
     uint256 association;
-    bool is_verified;
 }
 
 /**

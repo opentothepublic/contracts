@@ -74,12 +74,12 @@ contract UserRegistry is Nonce, ERC1271 {
 
     /**
      * @dev Creates a new user.
-     * @param id The unique identifier of the user.
+     * @param oid The unique identifier of the user.
      * @param user The address of the user.
      * @param recovery_addresses The recovery addresses for the user.
      * @param signature_verifier The address of the signature verifier.
      */
-    function create_user(uint256 id, address user, address[2] memory recovery_addresses, address signature_verifier)
+    function create_user(uint256 oid, address user, address[2] memory recovery_addresses, address signature_verifier)
         external
     {
         require(msg.sender == address(sudo.oid_registry()), NotRegistry());
@@ -88,9 +88,9 @@ contract UserRegistry is Nonce, ERC1271 {
         PublicKey[] memory account_keys = new PublicKey[](1);
         account_keys[0] = public_key;
 
-        users[id] = Identity({handle: bytes32(id), recovery_addresses: recovery_addresses, public_keys: account_keys});
+        users[oid] = Identity({handle: bytes32(oid), recovery_addresses: recovery_addresses, public_keys: account_keys});
 
-        emit UserRegistered(id, user);
+        emit UserRegistered(oid, user);
     }
 
     /**
@@ -103,14 +103,13 @@ contract UserRegistry is Nonce, ERC1271 {
     function recover_oid(uint256 oid, uint64 deadline, PublicKey memory new_key, bytes calldata signature) external {
         address[2] memory recovery_addresses = users[oid].recovery_addresses;
 
-        require(msg.sender == recovery_addresses[0] || msg.sender == recovery_addresses[1], UnAuthorized());
+        users[oid].public_keys = [new_key];
+        increment_nonce(oid);
+
         require(
             is_valid_recovery_signature(oid, get_nonce(oid), deadline, recovery_addresses, signature) == MAGICVALUE,
             SignatureInvalid()
         );
-
-        users[oid].public_keys = [new_key];
-        increment_nonce(oid);
         emit UserRecovered(oid, new_key);
     }
 

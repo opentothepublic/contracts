@@ -17,7 +17,7 @@ contract DeployScript is Script {
         vm.startBroadcast();
 
         // Deploy the Sudo contract
-        Sudo sudo = new Sudo{salt: salt}();
+        Sudo sudo = new Sudo{salt: salt}(msg.sender);
 
         // Deploy the UserRegistry contract
         UserRegistry userRegistry = new UserRegistry{salt: salt}(sudo);

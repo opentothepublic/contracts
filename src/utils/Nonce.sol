@@ -15,7 +15,7 @@ abstract contract Nonce {
      * @dev Increments the nonce for a given OID.
      * @param oid The OID for which to increment the nonce.
      */
-    function increment_nonce(uint256 oid) public {
+    function increment_nonce(uint256 oid) internal {
         nonces[oid]++;
     }
 

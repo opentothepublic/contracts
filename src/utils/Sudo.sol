@@ -22,7 +22,7 @@ contract Sudo is Ownable {
     // Indicates whether the registry cannot be changed.
     bool final_registry = false;
 
-    constructor() Ownable(msg.sender) {}
+    constructor(address owner) Ownable(owner) {}
 
     /**
      * @dev Sets the OID registry instance. Can only be called by the owner.

@@ -17,17 +17,8 @@ contract OrganizationRegistry {
      * @param level The level of the organization.
      * @param owner The address of the organization owner.
      * @param association The associated parent organization ID, if any.
-     * @param is_verified Whether the organization is verified.
      */
-    event OrganizationCreated(
-        uint256 indexed orgId, OrganizationLevel level, address owner, uint256 association, bool is_verified
-    );
-
-    /**
-     * @dev Emitted when an organization is verified.
-     * @param orgId The unique identifier of the organization.
-     */
-    event OrganizationVerified(uint256 indexed orgId);
+    event OrganizationCreated(uint256 indexed orgId, OrganizationLevel level, address owner, uint256 association);
 
     /**
      * @dev Emitted when an organization ownership is transferred.
@@ -61,7 +52,7 @@ contract OrganizationRegistry {
                               MAPPINGS
     //////////////////////////////////////////////////////////////*/
 
-    mapping(uint256 => Organization) organizations;
+    mapping(uint256 orgId => Organization org) organizations;
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -103,19 +94,19 @@ contract OrganizationRegistry {
      * @dev Creates a first-level organization.
      * @param orgId The unique identifier of the organization.
      * @param offchain_uri The URI of the organization's offchain data.
-     * @param attester_id The unique identifier of the attester.
+     * @param attester_oid The unique identifier of the attester.
      * @return The unique identifier of the created organization.
      */
-    function create_first_level_organization(uint256 orgId, string calldata offchain_uri, uint256 attester_id)
+    function create_first_level_organization(uint256 orgId, string calldata offchain_uri, uint256 attester_oid)
         external
         only_registry
         returns (uint256)
     {
-        Identity memory identity = user_registry.get_user_identity(attester_id);
+        Identity memory identity = user_registry.get_user_identity(attester_oid);
         require(identity.public_keys.length > 0, InvalidIdentity());
 
-        uint256 newOrgId = create_organization(orgId, offchain_uri, OrganizationLevel.FirstLevel, 0, identity, false);
-        emit OrganizationCreated(newOrgId, OrganizationLevel.FirstLevel, identity.public_keys[0].key, 0, false);
+        uint256 newOrgId = create_organization(orgId, offchain_uri, OrganizationLevel.FirstLevel, 0, identity);
+        emit OrganizationCreated(newOrgId, OrganizationLevel.FirstLevel, identity.public_keys[0].key, 0);
         return newOrgId;
     }
 
@@ -124,28 +115,22 @@ contract OrganizationRegistry {
      * @param orgId The unique identifier of the organization.
      * @param offchain_uri The URI of the organization's offchain data.
      * @param association The unique identifier of the associated parent organization.
-     * @param attester_id The unique identifier of the attester.
+     * @param attester_oid The unique identifier of the attester.
      * @return The unique identifier of the created organization.
      */
     function create_second_level_organization(
         uint256 orgId,
         string calldata offchain_uri,
         uint256 association,
-        uint256 attester_id
+        uint256 attester_oid
     ) external only_registry returns (uint256) {
-        Identity memory identity = user_registry.get_user_identity(attester_id);
+        Identity memory identity = user_registry.get_user_identity(attester_oid);
         require(identity.public_keys.length > 0, InvalidIdentity());
+        validate_second_level_org_creation(association, identity);
 
-        Organization memory org = organizations[association];
-        require(org.level == OrganizationLevel.FirstLevel, InvalidOrgLevel());
-        require(org.owner.public_keys[0].key == identity.public_keys[0].key, InvalidOrgAssociation());
-
-        uint256 newOrgId = create_organization(
-            orgId, offchain_uri, OrganizationLevel.SecondLevel, association, identity, org.is_verified
-        );
-        emit OrganizationCreated(
-            newOrgId, OrganizationLevel.SecondLevel, identity.public_keys[0].key, association, org.is_verified
-        );
+        uint256 newOrgId =
+            create_organization(orgId, offchain_uri, OrganizationLevel.SecondLevel, association, identity);
+        emit OrganizationCreated(newOrgId, OrganizationLevel.SecondLevel, identity.public_keys[0].key, association);
         return newOrgId;
     }
 
@@ -156,6 +141,7 @@ contract OrganizationRegistry {
      */
     function add_managed_identity(uint256 orgId, uint256 userId) external only_organization_owner(orgId) {
         Identity memory user = user_registry.get_user_identity(userId);
+        require(user.public_keys.length > 0, InvalidIdentity());
         organizations[orgId].managed_identities.push(user);
         emit ManagedIdentityAdded(orgId, userId);
     }
@@ -189,19 +175,9 @@ contract OrganizationRegistry {
         only_organization_owner(orgId)
     {
         Identity memory newOwnerIdentity = user_registry.get_user_identity(new_owner);
+        require(newOwnerIdentity.public_keys.length > 0, InvalidIdentity());
         organizations[orgId].owner = newOwnerIdentity;
         emit OrganizationOwnershipTransferred(orgId, newOwnerIdentity.public_keys[0].key);
-    }
-
-    /**
-     * @dev Verifies an organization.
-     * @param orgId The unique identifier of the organization.
-     */
-    function verify_organization(uint256 orgId) external {
-        require(msg.sender == address(sudo), NotSudo());
-        require(!organizations[orgId].is_verified, AlreadyVerified());
-        organizations[orgId].is_verified = true;
-        emit OrganizationVerified(orgId);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -227,26 +203,12 @@ contract OrganizationRegistry {
     }
 
     /**
-     * @dev Checks if an organization is verified.
-     * @param orgId The unique identifier of the organization.
-     * @return True if the organization is verified, false otherwise.
-     */
-    function is_organization_verified(uint256 orgId) public view returns (bool) {
-        return organizations[orgId].is_verified;
-    }
-
-    /**
      * @dev Returns the parent organization of a given organization.
      * @param orgId The unique identifier of the organization.
      * @return The unique identifier of the parent organization and its URI.
      */
-    function get_parent_organization(uint256 orgId) public view returns (uint256, string memory) {
-        return (
-            organizations[orgId].association,
-            organizations[orgId].association == 0
-                ? "none"
-                : organizations[organizations[orgId].association].offchain_uri
-        );
+    function get_parent_organization(uint256 orgId) public view returns (uint256) {
+        return organizations[orgId].association;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -260,7 +222,6 @@ contract OrganizationRegistry {
      * @param level The level of the organization.
      * @param association The associated parent organization ID, if any.
      * @param owner The identity of the organization owner.
-     * @param is_verified Whether the organization is verified.
      * @return The unique identifier of the created organization.
      */
     function create_organization(
@@ -268,11 +229,30 @@ contract OrganizationRegistry {
         string calldata offchain_uri,
         OrganizationLevel level,
         uint256 association,
-        Identity memory owner,
-        bool is_verified
+        Identity memory owner
     ) internal returns (uint256) {
         Identity[] memory managed_identities;
-        organizations[orgId] = Organization(offchain_uri, level, owner, managed_identities, association, is_verified);
+        organizations[orgId] = Organization(offchain_uri, level, owner, managed_identities, association);
         return orgId;
+    }
+
+    /**
+     * @dev validates that a second level can be created by parent org managers
+     * @param orgId - the orgId of the parent
+     * @param creator - the identity of the creator
+     */
+    function validate_second_level_org_creation(uint256 orgId, Identity memory creator) internal view {
+        Organization memory org = organizations[orgId];
+        require(org.level == OrganizationLevel.FirstLevel, InvalidOrgLevel());
+
+        Identity[] memory org_managers = org.managed_identities;
+        bool found = false;
+        for (uint256 i = 0; i < org_managers.length; i++) {
+            if (org_managers[i].public_keys[0].key == creator.public_keys[0].key) {
+                found = true;
+                break;
+            }
+        }
+        require(org.owner.public_keys[0].key == creator.public_keys[0].key || found, InvalidOrgAssociation());
     }
 }

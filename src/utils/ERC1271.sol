@@ -17,9 +17,6 @@ abstract contract ERC1271 is EIP712 {
     // Constants for the type hashes used in signature verification.
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant SUDO_TYPEHASH =
-        keccak256("isValidSudoSignature(uint256 oid,uint256 nonce,uint256 deadline, address sudo)");
-
     bytes32 public constant RECOVERY_TYPEHASH = keccak256(
         "isValidRecoverySignature(uint256 oid,uint256 nonce,uint256 deadline, address recovery1, address recovery2)"
     );

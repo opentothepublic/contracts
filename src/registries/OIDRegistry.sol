@@ -68,7 +68,6 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
     //////////////////////////////////////////////////////////////*/
 
     mapping(address => uint256) internal oid_of;
-    mapping(uint256 => uint256) internal fid_to_oid;
     mapping(bytes32 => uint256) internal eas_uid_to_oid;
     mapping(bytes32 => uint256) internal eas_uid_to_orgId;
     mapping(bytes32 => Object) internal objects;
@@ -133,41 +132,35 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
         uint256 association,
         address _attester
     ) external onlyResolver {
-        uint256 owner = oid_of[_attester];
-        require(owner != 0, NotRegistered());
+        uint256 owner_oid = oid_of[_attester];
+        require(owner_oid != 0, NotRegistered());
         uint256 org_id = next_org_id();
+        eas_uid_to_orgId[eas_uid] = org_id;
 
         if (association == 0) {
-            organization_registry.create_first_level_organization(org_id, offchain_uri, owner);
+            organization_registry.create_first_level_organization(org_id, offchain_uri, owner_oid);
         } else {
-            organization_registry.create_second_level_organization(org_id, offchain_uri, owner, association);
+            organization_registry.create_second_level_organization(org_id, offchain_uri, association, owner_oid);
         }
-
-        eas_uid_to_orgId[eas_uid] = org_id;
         emit OrganizationIdAttested(eas_uid, association, org_id);
     }
 
     /**
-     * @dev Attempts to register a new user with an FID.
-     * @param _fid The FID of the user.
+     * @dev registers or attempts to register a new user by attestation.
      * @param eas_uid The unique identifier of the attestation.
      * @param _attester The address of the attester.
      * @return oid The unique identifier of the OID.
      */
-    function try_register(uint256 _fid, bytes32 eas_uid, address _attester)
-        external
-        onlyResolver
-        returns (uint256 oid)
-    {
-        oid = get_oid(_fid);
+    function try_register(bytes32 eas_uid, address _attester) external onlyResolver returns (uint256 oid) {
+        oid = get_oid(_attester);
         if (oid == 0) {
-            oid = register_with_fid(_fid, eas_uid, _attester);
+            oid = handle_registration(eas_uid, _attester);
         }
         return oid;
     }
 
     /**
-     * @dev Changes the resolver.
+     * @dev Changes the resolver. only changeable by proxy upgrade.
      * @param new_resolver The address of the new resolver.
      */
     function change_resolver(OIDResolver new_resolver) external onlySudo {
@@ -176,15 +169,15 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
     }
 
     /**
-     * @dev Creates a new object.
-     * @param _fid The FID of the user.
+     * @dev Creates a new object refrencing the attestaion that created an org/user.
+     * @param _attester The address of the type-3 ottp attestation.
      * @param eas_uid The unique identifier of the attestation.
      * @param ref_eas_uid The reference unique identifier of the attestation.
      * @param label The label of the object.
      * @param offchain_uri The offchain URI of the object.
      */
     function create_object(
-        uint256 _fid,
+        address _attester,
         bytes32 eas_uid,
         bytes32 ref_eas_uid,
         Label label,
@@ -192,7 +185,7 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
     ) external onlyResolver {
         require(eas_uid_to_orgId[ref_eas_uid] != 0 || eas_uid_to_oid[ref_eas_uid] != 0, InvalidReference());
 
-        uint256 oid = fid_to_oid[_fid];
+        uint256 oid = oid_of[_attester];
         require(oid != 0, NotRegistered());
         Identity memory owner = user_registry.get_user_identity(oid);
         Object memory obj = Object(offchain_uri, label, owner, new Block[](0));
@@ -203,34 +196,27 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
     }
 
     /**
-     * @dev Creates a new block.
-     * @param _fid The FID of the user.
+     * @dev Creates a new block referencing the attestation that created an object.
+     * multi-attest can be used to create an object containing blocks
+     * @param _attester The address of the type-4 ottp attestation.
      * @param ref_eas_uid The reference unique identifier of the attestation.
      * @param data The data of the block.
      */
-    function create_block(uint256 _fid, bytes32 ref_eas_uid, string calldata data) external onlyResolver {
+    function create_block(address _attester, bytes32 ref_eas_uid, string calldata data) external onlyResolver {
         require(object_exists[ref_eas_uid], InvalidReference());
-        uint256 oid = fid_to_oid[_fid];
+
+        uint256 oid = oid_of[_attester];
         require(oid != 0, NotRegistered());
         Identity memory owner = user_registry.get_user_identity(oid);
         Block memory blk = Block(owner, uint64(block.timestamp), data);
-
         add_block_to_object(ref_eas_uid, blk);
+
         emit BlockAdded(ref_eas_uid, owner, uint64(block.timestamp));
     }
 
     /*//////////////////////////////////////////////////////////////
                            PUBLIC FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @dev Returns the OID for a given FID.
-     * @param _fid The FID of the user.
-     * @return The OID of the user.
-     */
-    function get_oid(uint256 _fid) public view returns (uint256) {
-        return fid_to_oid[_fid];
-    }
 
     /**
      * @dev Returns the OID for a given address.
@@ -252,19 +238,13 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
 
     /**
      * @dev Registers a new user with an FID.
-     * @param _fid The FID of the user.
      * @param eas_uid The unique identifier of the attestation.
      * @param _attester The address of the attester.
      * @return oid The unique identifier of the OID.
      */
-    function register_with_fid(uint256 _fid, bytes32 eas_uid, address _attester)
-        public
-        onlyResolver
-        returns (uint256 oid)
-    {
+    function handle_registration(bytes32 eas_uid, address _attester) public onlyResolver returns (uint256 oid) {
         oid = register(_attester, [address(0), address(0)]);
         eas_uid_to_oid[eas_uid] = oid;
-        link_fid(_fid, oid);
         emit OIDAttested(eas_uid, oid);
     }
 
@@ -292,24 +272,13 @@ contract OIDRegistry is Initializable, UUPSUpgradeable {
      * @dev Registers a new user.
      * @param _to The address of the user.
      * @param recovery The recovery addresses of the user.
-     * @return The unique identifier of the OID.
+     * @return id The unique identifier of the OID.
      */
-    function register(address _to, address[2] memory recovery) internal returns (uint256) {
+    function register(address _to, address[2] memory recovery) internal returns (uint256 id) {
         require(oid_of[_to] == 0, AlreadyRegistered());
-        uint256 id = next_oid();
+        id = next_oid();
         oid_of[_to] = id;
         user_registry.create_user(id, _to, recovery, address(user_registry));
-        return id;
-    }
-
-    /**
-     * @dev Links an FID to an OID.
-     * @param _fid The FID of the user.
-     * @param _oid The OID of the user.
-     */
-    function link_fid(uint256 _fid, uint256 _oid) internal {
-        require(fid_to_oid[_fid] == 0, AlreadyRegistered());
-        fid_to_oid[_fid] = _oid;
     }
 
     /**

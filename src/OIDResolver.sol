@@ -14,6 +14,11 @@ contract OIDResolver is SchemaResolver {
 
     Sudo public sudo;
 
+    /// @dev Since we cant be sure a user has the correct fid claim.
+    /// we can verify which of these claims is correct somewhere else or offchain.
+    mapping(uint256 fid => mapping(uint256 claimed_oid => bool exists)) private fid_to_oids;
+    mapping(uint256 fid => uint256[] claimed_oids) public fid_claims;
+
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -48,7 +53,8 @@ contract OIDResolver is SchemaResolver {
         OIDRegistry oid_registry = sudo.oid_registry();
 
         // Try to register the user using the FID, attestation UID, and attester address
-        oid_registry.try_register(fid, attestation.uid, attestation.attester);
+        uint256 oid = oid_registry.try_register(attestation.uid, attestation.attester);
+        handle_fid_claim(fid, oid);
 
         // Perform actions based on the action type
         if (action == 1) {
@@ -64,12 +70,12 @@ contract OIDResolver is SchemaResolver {
 
         if (action == 3) {
             // Create a new object
-            oid_registry.create_object(fid, attestation.uid, attestation.refUID, Label(label), data);
+            oid_registry.create_object(attestation.attester, attestation.uid, attestation.refUID, Label(label), data);
         }
 
         if (action == 4) {
             // Create a new block and add it to an existing object
-            oid_registry.create_block(fid, attestation.refUID, data);
+            oid_registry.create_block(attestation.attester, attestation.refUID, data);
         }
 
         return true;
@@ -81,6 +87,15 @@ contract OIDResolver is SchemaResolver {
     function onRevoke(Attestation calldata attestation, uint256 value) internal virtual override returns (bool) {
         (attestation);
         (value);
+        return true;
+    }
+
+    function handle_fid_claim(uint256 fid, uint256 oid) public returns (bool) {
+        if (fid_to_oids[fid][oid]) {
+            return false;
+        }
+        fid_to_oids[fid][oid] = true;
+        fid_claims[fid].push(oid);
         return true;
     }
 }
