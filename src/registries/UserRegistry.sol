@@ -102,12 +102,12 @@ contract UserRegistry is Nonce, ERC1271 {
      */
     function recover_oid(uint256 oid, uint64 deadline, PublicKey memory new_key, bytes calldata signature) external {
         address[2] memory recovery_addresses = users[oid].recovery_addresses;
-
         users[oid].public_keys = [new_key];
+        uint256 nonce = get_nonce(oid);
         increment_nonce(oid);
 
         require(
-            is_valid_recovery_signature(oid, get_nonce(oid), deadline, recovery_addresses, signature) == MAGICVALUE,
+            is_valid_recovery_signature(oid, nonce, deadline, recovery_addresses, signature) == MAGICVALUE,
             SignatureInvalid()
         );
         emit UserRecovered(oid, new_key);
