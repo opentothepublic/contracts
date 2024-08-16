@@ -5,7 +5,17 @@ libs = ['lib']
 fs_permissions = [{ access = "read", path = "./"}]
 optimizer = true
 optimizer_runs = 100000
-solc_version = "0.8.23"
+solc_version = "0.8.26"
 via_ir = true
+evm_version = 'cancun'
+
+[rpc_endpoints]
+base-sepolia = "${BASE_SEPOLIA_RPC_URL}"
+base = "${BASE_RPC_URL}"
+
+[etherscan]
+base-sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532, url = "https://api-sepolia.basescan.org/api" }
+base = { key = "${BASESCAN_API_KEY}", chain = 8453, url = "https://api.basescan.org/api" }
+
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
