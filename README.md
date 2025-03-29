@@ -64,3 +64,8 @@ forge --help
 anvil --help
 cast --help
 ```
+
+## Get Involved
+If you're interested in contributing to this open-source project, please see [CONTRIBUTING](https://github.com/opentothepublic/protocol/blob/main/CONTRIBUTING.md).
+
+Note: Everything is a work in progress.
