@@ -3,18 +3,17 @@ pragma solidity ^0.8.23;
 
 error IndexOutOfBounds();
 error UnAuthorized();
+
 error NotRegistered();
 error AlreadyRegistered();
-error InvalidSudoAddress();
-error NotOrganizationOwner();
-error NotSudo();
-error AlreadyVerified();
-error InvalidIdentity();
-error InvalidOrgAssociation();
-error InvalidOrgLevel();
+
+error NotManager();
 error NotRegistry();
-error SignatureExpired();
-error SignatureInvalid();
-error InvalidSignatureLength();
 error NotResolver();
+
+error InvalidAssociation();
+error InvalidIdentity();
+error InvalidOrgLevel();
 error InvalidReference();
+
+error SignatureExpired();
