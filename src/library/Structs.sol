@@ -7,8 +7,8 @@ pragma solidity ^0.8.23;
  *      - SecondLevel: Represents a second-level organization.
  */
 enum OrganizationLevel {
-    FirstLevel,
-    SecondLevel
+  FirstLevel,
+  SecondLevel
 }
 
 /**
@@ -18,9 +18,9 @@ enum OrganizationLevel {
  *      - Milestone: Represents a milestone.
  */
 enum Label {
-    Project,
-    Proposal,
-    Milestone
+  Project,
+  Proposal,
+  Milestone
 }
 
 /**
@@ -30,9 +30,9 @@ enum Label {
  * @param content The content of the block.
  */
 struct Block {
-    Identity user;
-    uint64 timestamp;
-    string content;
+  Identity user;
+  uint64 timestamp;
+  string content;
 }
 
 /**
@@ -41,8 +41,8 @@ struct Block {
  * @param signature_verifier The address of the signature verifier.
  */
 struct PublicKey {
-    address key;
-    address signature_verifier;
+  address key;
+  address signature_verifier;
 }
 
 /**
@@ -52,9 +52,9 @@ struct PublicKey {
  * @param recovery_addresses An array of two recovery addresses.
  */
 struct Identity {
-    bytes32 handle;
-    PublicKey[] public_keys;
-    address[2] recovery_addresses;
+  bytes32 handle;
+  PublicKey[] public_keys;
+  address[2] recovery_addresses;
 }
 
 /**
@@ -66,11 +66,11 @@ struct Identity {
  * @param association The ID of the associated parent organization, if any.
  */
 struct Organization {
-    string offchain_uri;
-    OrganizationLevel level;
-    Identity owner;
-    Identity[] managed_identities;
-    uint256 association;
+  string offchain_uri;
+  OrganizationLevel level;
+  Identity owner;
+  Identity[] managed_identities;
+  uint256 association;
 }
 
 /**
@@ -81,10 +81,10 @@ struct Organization {
  * @param blocks An array of blocks associated with the object.
  */
 struct Object {
-    string offchain_uri;
-    Label label;
-    Identity owner;
-    Block[] blocks;
+  string offchain_uri;
+  Label label;
+  Identity owner;
+  Block[] blocks;
 }
 
 /**
@@ -98,17 +98,11 @@ uint256 constant MAX_PUBLIC_KEYS_LENGTH = 3;
 uint256 constant MAX_MANAGED_KEYS_LENGTH = 5;
 
 /**
- * @dev Constant representing the magic value for valid signatures.
- *      - bytes4(keccak256("isValidSignature(bytes32,(uint8,bytes,address,bytes4),bytes)"))
- */
-bytes4 constant MAGICVALUE = 0xbaca03f5;
-
-/**
  * @dev Constant representing the failure value for signature verification.
  */
-bytes4 constant SIG_VERIFICATION_FAILED = 0xffffffff;
+bytes4 constant SIG_V_F = 0xffffffff;
 
 /**
  * @dev Constant representing the success value for ERC1271 signature verification.
  */
-bytes4 constant ERC1271_SUCCESS = 0x1626ba7e;
+bytes4 constant SIG_V_S = 0x1626ba7e;
